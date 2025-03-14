@@ -62,7 +62,6 @@ func findProcessByInode(inode []byte) (int, string) {
 
 			if result == expected {
 				cmdline, _ := os.ReadFile(path + "cmdline")
-				fmt.Println(cmdline)
 				return n, string(cmdline)
 			}
 
@@ -72,10 +71,10 @@ func findProcessByInode(inode []byte) (int, string) {
 
 }
 
-func ParseTCP() [][]byte {
+func ParseTCP() []Process {
 	file, err := os.ReadFile(PROC_NET_PATH + "tcp6")
-	port := [][]byte{}
 
+	processesed := []Process{}
 	if err != nil {
 		log.Fatalf("ERROR: Could not read %s because %s", PROC_NET_PATH, err)
 	}
@@ -98,8 +97,8 @@ func ParseTCP() [][]byte {
 		p.inode = chunks[len(chunks)-8]
 		p.pid, p.process_name = findProcessByInode(p.inode)
 
-		fmt.Println(p)
+		processesed = append(processesed, p)
 	}
 
-	return port
+	return processesed
 }
