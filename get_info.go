@@ -6,11 +6,17 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 )
 
+type Manager struct {
+	processes map[string][]string
+	tcp       map[string]Process
+}
+
 type Process struct {
-	pid          int
-	port         []byte
+	pid          string
+	port         string
 	process_name string
 	inode        []byte
 }
@@ -26,17 +32,12 @@ const (
 	QUOTE_FINAL int = 6
 )
 
-// this is dumb but lets go this way
-// probably the best thing should be to cache the /proc and search by the inode
-// TODO: cache /proc
-func findProcessByInode(inode []byte) (int, string) {
+func (m *Manager) cacheProc() {
 	files, err := os.ReadDir(PROC_PATH)
 
 	if err != nil {
-		log.Fatalf("ERROR: Could not read %s because %s", PROC_PATH, err)
+		log.Fatalln("ERROR: Reading dir", err)
 	}
-
-	expected := fmt.Sprintf("socket:[%s]", string(inode))
 
 	for _, file := range files {
 		n, ok := strconv.Atoi(file.Name())
@@ -44,12 +45,10 @@ func findProcessByInode(inode []byte) (int, string) {
 		if ok != nil {
 			continue
 		}
-
 		path := fmt.Sprintf("%s%d/", PROC_PATH, n)
 		fds, err := os.ReadDir(path + "fd/")
 
 		if err != nil {
-			// fmt.Printf("ERROR: Could not read fds because %s\n", err)
 			continue
 		}
 		for _, fd := range fds {
@@ -60,21 +59,17 @@ func findProcessByInode(inode []byte) (int, string) {
 				continue
 			}
 
-			if result == expected {
+			if strings.Contains(result, "socket") {
 				cmdline, _ := os.ReadFile(path + "cmdline")
-				return n, string(cmdline)
+				m.processes[result] = []string{fmt.Sprintf("%d", n), string(cmdline)}
 			}
-
 		}
 	}
-	return -1, "not found"
-
 }
 
-func ParseTCP() []Process {
+func (m *Manager) ParseTCP() {
 	file, err := os.ReadFile(PROC_NET_PATH + "tcp6")
 
-	processesed := []Process{}
 	if err != nil {
 		log.Fatalf("ERROR: Could not read %s because %s", PROC_NET_PATH, err)
 	}
@@ -92,13 +87,19 @@ func ParseTCP() []Process {
 
 		p := Process{}
 
-		// // those who know
-		p.port = chunks[4][len(chunks[4])-4 : len(chunks[4])]
-		p.inode = chunks[len(chunks)-8]
-		p.pid, p.process_name = findProcessByInode(p.inode)
+		// convert byte to string then to number then to string again
+		portLiteral := string(chunks[4][len(chunks[4])-4 : len(chunks[4])])
+		port, _ := strconv.ParseInt(string(portLiteral), 16, 64)
+		p.port = fmt.Sprintf("%d", port)
 
-		processesed = append(processesed, p)
+		p.inode = chunks[len(chunks)-8]
+		search := fmt.Sprintf("socket:[%s]", string(p.inode))
+		result := m.processes[search]
+		if len(result) == 0 {
+			continue
+		}
+		p.pid, p.process_name = result[0], result[1]
+		m.tcp[search] = p
 	}
 
-	return processesed
 }
