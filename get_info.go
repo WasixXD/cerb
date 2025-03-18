@@ -85,20 +85,19 @@ func (m *Manager) ParseTCP() {
 		if len(chunks) == 1 {
 			break
 		}
-
 		p := Process{}
-
-		// convert byte to string then to number then to string again
-		portLiteral := string(chunks[4][len(chunks[4])-4 : len(chunks[4])])
-		port, _ := strconv.ParseInt(string(portLiteral), 16, 64)
-		p.port = fmt.Sprintf("%d", port)
-
 		p.inode = chunks[len(chunks)-8]
 		search := fmt.Sprintf("socket:[%s]", string(p.inode))
 		result := m.processes[search]
 		if len(result) == 0 {
 			continue
 		}
+
+		// convert byte to string then to number then to string again
+		portLiteral := string(chunks[4][len(chunks[4])-4 : len(chunks[4])])
+		port, _ := strconv.ParseInt(string(portLiteral), 16, 64)
+		p.port = fmt.Sprintf("%d", port)
+
 		p.pid, p.process_name = result[0], result[1]
 		m.tcp[search] = p
 	}

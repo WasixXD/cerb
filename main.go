@@ -10,15 +10,17 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 var manager Manager
+
+var baseStyle = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("240"))
 
 type keymap struct {
 	up      key.Binding
 	down    key.Binding
 	refresh key.Binding
-	inspect key.Binding
 	kill    key.Binding
 	quit    key.Binding
 }
@@ -75,6 +77,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				log.Fatalf("ERROR: Could not kill process[%s] because %s\n", pid, err)
 				os.Exit(1)
 			}
+
 			manager.cacheProc()
 			manager.ParseTCP()
 			rows := []table.Row{}
@@ -93,11 +96,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	s := m.table.View()
+	s := baseStyle.Render(m.table.View())
 	s += "\n" + m.help.ShortHelpView([]key.Binding{
 		m.keymap.up,
 		m.keymap.down,
 		m.keymap.refresh,
+		m.keymap.kill,
 		m.keymap.quit,
 	})
 
@@ -135,13 +139,13 @@ func main() {
 	for _, k := range manager.tcp {
 		rows = append(rows, []string{k.pid, k.port, k.process_name, string(k.inode)})
 	}
+	t := table.New(
+		table.WithColumns(columns),
+		table.WithRows(rows),
+		table.WithFocused(true),
+		table.WithHeight(len(manager.tcp)),
+	)
 	mod := model{
-		table: table.New(
-			table.WithColumns(columns),
-			table.WithRows(rows),
-			table.WithFocused(true),
-			table.WithHeight(len(manager.tcp)),
-		),
 		keymap: keymap{
 			up: key.NewBinding(
 				key.WithKeys("↑"),
@@ -155,13 +159,9 @@ func main() {
 				key.WithKeys("r"),
 				key.WithHelp("r", "refresh"),
 			),
-			inspect: key.NewBinding(
-				key.WithKeys("i"),
-				key.WithHelp("i", "inspect"),
-			),
 			kill: key.NewBinding(
-				key.WithKeys("k"),
-				key.WithHelp("k", "kill"),
+				key.WithKeys("s"),
+				key.WithHelp("s", "shutdown"),
 			),
 
 			quit: key.NewBinding(
@@ -171,6 +171,13 @@ func main() {
 		},
 		help: help.New(),
 	}
+	s := table.DefaultStyles()
+
+	s.Header = s.Header.Bold(true).BorderBottom(true).BorderStyle(lipgloss.NormalBorder())
+	s.Selected = s.Selected.Bold(false).Background(lipgloss.Color("57")).Foreground(lipgloss.Color("#fffff"))
+	t.SetStyles(s)
+	mod.table = t
+
 	p := tea.NewProgram(mod)
 
 	if _, err := p.Run(); err != nil {
