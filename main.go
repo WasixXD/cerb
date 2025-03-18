@@ -2,7 +2,9 @@ package main
 
 import (
 	"log"
+	"os"
 	"os/user"
+	"strconv"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -16,6 +18,8 @@ type keymap struct {
 	up      key.Binding
 	down    key.Binding
 	refresh key.Binding
+	inspect key.Binding
+	kill    key.Binding
 	quit    key.Binding
 }
 
@@ -23,6 +27,16 @@ type model struct {
 	table  table.Model
 	keymap keymap
 	help   help.Model
+}
+
+func string2int(num string) int {
+	n, err := strconv.Atoi(num)
+
+	if err != nil {
+		return -1
+	}
+
+	return n
 }
 
 func (m model) Init() tea.Cmd {
@@ -46,6 +60,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			m.table.SetRows(rows)
 			m.table.Focus()
+		case key.Matches(msg, m.keymap.kill):
+			pid := m.table.SelectedRow()[0]
+			proc, err := os.FindProcess(string2int(pid))
+
+			if err != nil {
+				os.Exit(1)
+			}
+
+			err = proc.Kill()
+
+			if err != nil {
+				log.Fatalf("ERROR: Could not kill process[%s] because %s\n", pid, err)
+				os.Exit(1)
+			}
+
+			rows := []table.Row{}
+			for _, k := range manager.tcp {
+				rows = append(rows, []string{k.pid, k.port, k.process_name, string(k.inode)})
+			}
+
+			m.table.SetRows(rows)
 		}
 	}
 
@@ -103,7 +138,7 @@ func main() {
 			table.WithColumns(columns),
 			table.WithRows(rows),
 			table.WithFocused(true),
-			table.WithHeight(35),
+			table.WithHeight(len(manager.tcp)),
 		),
 		keymap: keymap{
 			up: key.NewBinding(
@@ -118,6 +153,15 @@ func main() {
 				key.WithKeys("r"),
 				key.WithHelp("r", "refresh"),
 			),
+			inspect: key.NewBinding(
+				key.WithKeys("i"),
+				key.WithHelp("i", "inspect"),
+			),
+			kill: key.NewBinding(
+				key.WithKeys("k"),
+				key.WithHelp("k", "kill"),
+			),
+
 			quit: key.NewBinding(
 				key.WithKeys("q"),
 				key.WithHelp("q", "quit"),
