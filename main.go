@@ -51,6 +51,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keymap.quit):
 			return m, tea.Quit
 		case key.Matches(msg, m.keymap.refresh):
+			// TODO: Make this process of change rows more elegant
 			manager.cacheProc()
 			manager.ParseTCP()
 			rows := []table.Row{}
@@ -74,7 +75,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				log.Fatalf("ERROR: Could not kill process[%s] because %s\n", pid, err)
 				os.Exit(1)
 			}
-
+			manager.cacheProc()
+			manager.ParseTCP()
 			rows := []table.Row{}
 			for _, k := range manager.tcp {
 				rows = append(rows, []string{k.pid, k.port, k.process_name, string(k.inode)})

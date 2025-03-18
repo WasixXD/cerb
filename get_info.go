@@ -33,6 +33,7 @@ const (
 )
 
 func (m *Manager) cacheProc() {
+	m.tcp = make(map[string]Process)
 	files, err := os.ReadDir(PROC_PATH)
 
 	if err != nil {
